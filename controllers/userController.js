@@ -1,11 +1,9 @@
 
 
 
-
-
 // single User API
 let getUsers = (req,res) => {
-    if(req.url === '/favicon.ico')
+    if(req.url === './favicon')
     {
         //everything here is ignored
     }
@@ -13,6 +11,7 @@ let getUsers = (req,res) => {
 }
 
 
+
 module.exports = {
-    getUsers: getUsers
+    getUsers
 }
