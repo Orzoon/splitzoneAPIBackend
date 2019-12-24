@@ -2,10 +2,15 @@ const mongoose = require('mongoose');
 
 
 const userSchema = new mongoose.Schema({
-        userName : {
+        username : {
             type: String,
             trim: true,
             required: true
+        },
+        email: {
+            type: String,
+            required: true,
+            unique: true
         },
         password : {
             type: String,
@@ -17,14 +22,17 @@ const userSchema = new mongoose.Schema({
         },
         groups: [mongoose.Schema.Types.ObjectId],
         verified: {
-            type: Boolean
+            type: Boolean,
+            default: false
         },
         tokens:[{
-            type: Array,
-            trim: true,
-            required: true
+            token: {
+                type: String,
+                trim: true,
+                required: true
+            }
         }] 
 }, {timestamps:true});
 
-const User = mongoose.models('User', userSchema);
+const User = mongoose.model('User', userSchema);
 module.exports = User;

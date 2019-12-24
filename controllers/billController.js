@@ -1,3 +1,6 @@
+const billModel = require("../modals/billModel");
+
+
 
 getBills = (req,res) => {
 

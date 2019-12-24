@@ -1,4 +1,4 @@
-
+const activityModel = require("../modals/activityModel");
 
 
 getActivity = (req,res) => {

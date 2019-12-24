@@ -8,15 +8,29 @@ const GroupSchema = new mongoose.Schema({
         required: true
     },
     createdBy: {
-        type: string,
+        type: String,
         required: true,
         trim: true
     },
+    members: [{
+        _id:{
+            type: mongoose.Schema.Types.ObjectId
+        },
+        name: {
+            type: String,
+            trim: true
+        },
+        email: {
+            type: String,
+            trim: true,
+            unique: true
+        }
+    }],
     createdById: {
         type: mongoose.Schema.Types.ObjectId
     },
-    color: {
-        type: string
+    createdOn: {
+        type: Date
     }
 })
 const Group = mongoose.model("Group", GroupSchema)
