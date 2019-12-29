@@ -6,15 +6,12 @@ const billSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
-    splittedAmongNumber: {
+    paidAmount: {
         type: Number,
         required: true
     },
-    splittedAmongMembers: {
-        type: [mongoose.Schema.Types.ObjectId]
-    },
-    dividedEqually: {
-        type: Boolean,
+    splittedAmongNumber: {
+        type: Number,
         required: true
     },
     paidDate: {
@@ -22,17 +19,18 @@ const billSchema = new mongoose.Schema({
         required: true,
         default: null
     },
-    paidAmount: {
-        type: Number,
+    dividedEqually: {
+        type: Boolean,
         required: true
     },
+    splittedAmongMembers:[mongoose.Schema.ObjectId],
     paidCategory: {
         type: String,
         required: true,
         trim: true,
         default: null
     },
-    owners: {
+    ownerGroup: {
         type: [mongoose.Schema.Types.ObjectId],
         required: true
     }

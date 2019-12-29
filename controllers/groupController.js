@@ -19,7 +19,7 @@ const getGroups= async(req,res) => {
             res.send(error);
         }
     }
-}
+}//------Cleared
 const postGroup = async(req,res) => {
     const allowedProperties = ["groupName"];
     const properties = Object.keys(req.body)
@@ -40,7 +40,7 @@ const postGroup = async(req,res) => {
             res.send(error)
         }
     }
-};
+};//-----cleared
 const updateGroup = async(req,res) => {
     if(req.params.groupId.length = 0 || !req.params.groupId){
         return res.status(400).send({"error": "invalid group link"})
@@ -76,7 +76,8 @@ const updateGroup = async(req,res) => {
             res.send(error)
         }
     }
-};
+};//-----cleared
+
 module.exports = {
     getGroups,
     postGroup,
