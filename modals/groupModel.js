@@ -22,17 +22,20 @@ const GroupSchema = new mongoose.Schema({
         },
         email: {
             type: String,
-            trim: true,
-            unique: true
+            trim: true
         }
     }],
+    activity: {
+        type: String,
+        trim: true
+    },
     createdById: {
         type: mongoose.Schema.Types.ObjectId
     },
     createdOn: {
-        type: Date
+        type: Date,
     }
-})
+}, {timestamps: true})
 const Group = mongoose.model("Group", GroupSchema)
 
 module.exports = Group;

@@ -5,7 +5,6 @@ const userSchema = new mongoose.Schema({
         username : {
             type: String,
             trim: true,
-            required: true
         },
         email: {
             type: String,
@@ -15,7 +14,6 @@ const userSchema = new mongoose.Schema({
         password : {
             type: String,
             trim: true,
-            required: true
         },
         dateCreated: {
             type: Date
@@ -29,9 +27,11 @@ const userSchema = new mongoose.Schema({
             token: {
                 type: String,
                 trim: true,
-                required: true
             }
-        }] 
+        }],
+        tempUser: {
+            type: Boolean
+        } 
 }, {timestamps:true});
 
 const User = mongoose.model('User', userSchema);

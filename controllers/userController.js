@@ -1,4 +1,5 @@
 const userModel = require('../modals/userModel');
+const userActivityModel = require("../modals/userActivityModel");
 const bcrypt = require('bcryptjs');
 const jwt = require("jsonwebtoken");
 
@@ -20,6 +21,8 @@ const userSignin = async(req,res) => {
         const userObj = user.toObject();
         delete userObj.password;
         delete userObj.tokens;
+        const userActivity = new userActivityModel({activityUserId: req.user._id, activity: `you signed-in on ${new Date().toDateString} at ${new Date().getHours()}:${new Date().getMinutes()} `});
+        await userActivity.save();
         res.status(200).json({userObj, token});
     }
     catch(error){
@@ -49,6 +52,8 @@ const userSignup = async(req,res) => {
         const userObj = user.toObject();
         delete userObj.tokens;
         delete userObj.password;
+        const userActivity = new userActivityModel({activityUserId: req.user._id, activity: `you created your Account on ${new Date().toDateString} at ${new Date().getHours()}:${new Date().getMinutes()} `});
+        await userActivity.save();
         res.status(200).json({userObj, token});
     }
     catch(error){
@@ -62,7 +67,6 @@ const userSignup = async(req,res) => {
     }
 
 }
-
 const getUser = async(req,res) => {
     try{
       res.json(req.user);
@@ -71,7 +75,6 @@ const getUser = async(req,res) => {
         res.status(500).send();
     }
 }
-
 module.exports = {
     userSignin,
     userSignup,
