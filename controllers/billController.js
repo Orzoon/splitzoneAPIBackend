@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
 const billModel = require("../modals/billModel");
 const groupModel = require("../modals/groupModel");
+const billActivityModel = require("../modals/billActivityModel");
 
 const getBills = async(req,res) => {
     const {groupId,limit,skip} = req.params;
     if(!groupId){
         return res.status(400).send({"error": "missing group parameter"})
     }
-
     try{
         const groupCount = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)}).countDocuments();
         if(groupCount !== 1){
@@ -71,6 +71,22 @@ const postBill = async(req,res) => {
             return res.status(400).json({"error": "invalid attempt to insert a bill into a group"})
         }
         const bill = await billModel.insertOne(req.body);
+        if(!bill){
+            throw new Error("bill couldnot be created, try again later")
+        }
+
+        /*
+        billActivity upon creation of a bill
+        */
+        const billActivity = await billActivityModel.insertOne({
+            invokedBy: {
+                _id: req.user._id,
+                name: req.user.username
+            },
+            groupId: req.params.groupId,
+            activity: "added the bill to the group"
+        })
+        
         res.status(200).json(bill)
     }catch(error){
         if(error.message){
@@ -111,6 +127,14 @@ const updateBill = async(req,res) => {
             }
         })
         await bill.save();
+        const billActivity = await billActivityModel.insertOne({
+            invokedBy: {
+                _id: req.user._id,
+                name: req.user.username
+            },
+            groupId: req.params.groupId,
+            activity: "made changes to the bill in the group"
+        })
         res.stauts(200).json(bill)   
     }
     catch(error){
@@ -122,10 +146,41 @@ const updateBill = async(req,res) => {
         }
     }
 }
-
+const deleteBill = async(req,res) => {
+     const {groupId, billId} = req.params;
+     if(!groupId || !billId) {
+         return res.status(400).json({"error": "billId and groupId not supplied in URL parameter"})
+     }
+     try{
+        const bill = await billModel.deleteOne({_id: mongoose.Types.ObjectId(billId), ownerGroup: mongoose.Types.ObjectId(groupId)});
+        if(!bill){
+            throw new Error('bill doesnot exist!')
+        }
+        res.status(200).send();
+        /*
+        bill deletion Activity
+        */
+        const billActivity = await billActivityModel.insertOne({
+            invokedBy: {
+                _id: req.user._id,
+                name: req.user.username
+            },
+            groupId: groupId,
+            activity: "deleted a bill from the group"
+        })
+     }catch(error){
+         if(error.message){
+             res.status(500).json(error.message)
+         }
+         else {
+             res.status(500).json(error.message)
+         }
+     }
+}
 module.exports = {
     getBill,
     getBills,
     postBill,
-    updateBill
+    updateBill,
+    deleteBill
 }

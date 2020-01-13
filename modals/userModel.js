@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema({
         dateCreated: {
             type: Date
         },
+        created: {
+            type: Boolean,
+            required: true
+        },
         groups: [mongoose.Schema.Types.ObjectId],
         verified: {
             type: Boolean,

@@ -24,13 +24,15 @@ const groupActivitySchema = new mongoose.Schema({
             trim: true
         }
     },
+    groupParties: [],
     activity: {
         type: String,
         trim: true
     },
     createdOn: {
         type: String,
-        trim: true
+        trim: true,
+        default: Date.now()
     }
 }, {timestamps: true});
 

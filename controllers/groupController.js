@@ -223,7 +223,20 @@ const deleteGroup = async(req,res) => {
         // deleting bills associated with group frist and then deleting group
         await billModel.deleteMany({ownerGroup: mongoose.Types.ObjectId(groupId)})
         await group.remove();
+        const removedGroupName = group.groupName;
+        const invokedBy ={
+            _id: req.user._id,
+            name: req.user.username
+        }
+        const groupParties = [...group.members]
         res.status(200).json({"message": "successfully deleted the group"});
+
+        const groupActivity = await groupActivityModel.insertOne({
+            activityGroupId: group._id,
+            invokedBy,
+            activity: `deleted group ${removedGroupName}`,
+            groupParties
+        })
     }catch(error){
         if(error.message){
             res.send({error: error.message})
