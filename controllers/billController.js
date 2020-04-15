@@ -56,21 +56,21 @@ const getBill = async(req,res) => {
 }
 const postBill = async(req,res) => {
     const {groupId} = req.params;
-    const allowedProperty = ["paidById","paidAmount", "splittedAmongNumber", "paidDate", "dividedEqually", "splittedAmongMembers", "paidCategory", "ownerGroup"];
+    const allowedProperty = ["paidBy","addedBy","paidAmount", "splittedAmongNumber", "paidDate", "dividedEqually","divided", "splittedAmongMembers", "paidCategory", "ownerGroup"];
     const properties = Object.keys(req.body);
     if(allowedProperty.length !== properties.length){
         return res.status(400).json({"error": "invalid entry of properties"});
     }
     const includes = properties.every(item => allowedProperty.includes(item));
     if(!includes){
-        return res.stauts(400).json({"error": "invalid attempt to create a bill"})
+        return res.status(400).json({"error": "invalid attempt to create a bill"})
     }
     try{
         const groupCount = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": req.user._id}).countDocuments();
         if(groupCount !== 1){
             return res.status(400).json({"error": "invalid attempt to insert a bill into a group"})
         }
-        const bill = await billModel.insertOne(req.body);
+        const bill = await billModel.create({...req.body, paidDate: new Date()});
         if(!bill){
             throw new Error("bill couldnot be created, try again later")
         }
@@ -78,7 +78,7 @@ const postBill = async(req,res) => {
         /*
         billActivity upon creation of a bill
         */
-        const billActivity = await billActivityModel.insertOne({
+        const billActivity = await billActivityModel.create({
             invokedBy: {
                 _id: req.user._id,
                 name: req.user.username

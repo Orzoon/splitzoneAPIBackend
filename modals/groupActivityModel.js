@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 
 const groupActivitySchema = new mongoose.Schema({
     activityGroupId: {
-        type: mongoose.Types.Schema.ObjectId
+        type: mongoose.Schema.Types.ObjectId
     },
     invokedBy: {
         _id: {

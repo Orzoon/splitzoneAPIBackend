@@ -8,6 +8,6 @@ billRoutes.get('/app/bills/:groupId/:limit/:skip', auth, billController.getBills
 billRoutes.get('/app/bill/:billId',auth, billController.getBill);
 billRoutes.post('/app/bill/:groupId', auth, billController.postBill);
 billRoutes.patch('/app/bill/:groupId/:billId', billController.updateBill);
-billRoutes.delete('/app/bi../:groupId/:billId', billController.deleteBill);
+billRoutes.delete('/app/bill/:groupId/:billId', billController.deleteBill);
 
 module.exports = billRoutes;

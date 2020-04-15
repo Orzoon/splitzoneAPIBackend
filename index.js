@@ -10,6 +10,7 @@ const userRoutes = require('./routes/userRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const billRoutes = require('./routes/billRoutes');
 const activityRoutes = require('./routes/activityRoutes');
+const friendRoutes = require('./routes/friendRoutes');
 
 /*----------BodyParser-------------*/
 app.use(bodyParser.urlencoded({extended: true}));
@@ -18,8 +19,8 @@ app.use(bodyParser.json());
 /*------------------HEADERS--------------*/
 app.use((req,res,next) => {
     res.setHeader("Access-Control-Allow-origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST", "GET", "PATCH", "DELETE");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization", "Content-Type, application/json");
+    res.setHeader("Access-Control-Allow-Methods", "POST, GET, PATCH, DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     next();
 })
 
@@ -35,6 +36,7 @@ app.use('/api',userRoutes);
 app.use('/api',groupRoutes);
 app.use('/api', billRoutes);
 app.use('/api', activityRoutes);
+app.use('/api', friendRoutes)
 
 
 
