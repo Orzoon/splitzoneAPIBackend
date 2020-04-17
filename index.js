@@ -4,8 +4,12 @@ const express = require('express');
 const app = express();
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
+const passport = require('passport');
+/*  Oauth  */
+const authRoutes = require('./routes/authRoutes');
+const authConfig = require('./config/authConfig');
 
-// Routes
+/* ROUTES */
 const userRoutes = require('./routes/userRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const billRoutes = require('./routes/billRoutes');
@@ -23,7 +27,7 @@ app.use((req,res,next) => {
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     next();
 })
-
+app.use(passport.initialize())
 
 /*---------ROUTES-----------*/
 app.get('/', (req,res) => {
@@ -32,6 +36,8 @@ app.get('/', (req,res) => {
     }
     res.status(200).send();
 })
+
+app.use('/auth',authRoutes);
 app.use('/api',userRoutes);
 app.use('/api',groupRoutes);
 app.use('/api', billRoutes);

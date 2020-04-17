@@ -5,6 +5,9 @@ const groupModel = require('../modals/groupModel');
 const bcrypt = require('bcryptjs');
 const jwt = require("jsonwebtoken");
 
+/*  Express-Validator  */
+const { check, validationResult } = require('express-validator');
+
 /* Importing entire ActivityModals */
 const userActivityModel = require("../modals/userActivityModel");
 const friendActivityModel = require("../modals/friendActivityModel");
@@ -14,9 +17,14 @@ const billActivityModel = require("../modals/billActivityModel")
 
 // single User API
 const userSignin = async(req,res) => {
+    /* validation errors */
+    const errors = validationResult(req).array();
 
+    //-> validation errors!
+    if(errors.length > 0){
+        return res.status(422).json(errors)
+    }
     const {email, password} = req.body;
-    // check validation
     try{
         const userExists = await userModel.findOne({email: email});
         if(!userExists){

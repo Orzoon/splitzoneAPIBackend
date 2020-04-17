@@ -6,8 +6,11 @@ const auth = require('../auth/auth');
 const userController = require('../controllers/userController')
 
 
+/*  Express-Validator  */
+const { check, validationResult } = require('express-validator');
+
 /*------USER---------*/
-userRoutes.post('/user/signin', userController.userSignin);
+userRoutes.post('/user/signin', check('email').isEmail(), userController.userSignin);
 userRoutes.post('/user/signup', userController.userSignup);
 userRoutes.get('/app/user', auth, userController.getUser);
 
