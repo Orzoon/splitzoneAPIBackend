@@ -16,6 +16,7 @@ const billRoutes = require('./routes/billRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 const friendRoutes = require('./routes/friendRoutes');
 
+/* OTHER HEADERS MIDDLEWARE --> TO ADD */
 /*----------BodyParser-------------*/
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
