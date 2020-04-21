@@ -12,7 +12,7 @@ const auth = async(req,res,next) => {
             throw new  Error("token not found in header");
         }
         const jwtVerify = jwt.verify(token, process.env.TOKENSECRET)
-        const user = await userModel.findOne({$and: [{_id: jwtVerify.userID}, {"tokens.token": token}]});
+        const user = await userModel.findOne({$and: [{_id: jwtVerify.userID}, {"tokens.token": token}, {created: true}]});
         if(!user){
             throw new Error("please authenticate")
         }
@@ -23,6 +23,7 @@ const auth = async(req,res,next) => {
         next();
     }
     catch(error){
+        console.log(error)
         if(error.message){
             res.send(error.message)
         }

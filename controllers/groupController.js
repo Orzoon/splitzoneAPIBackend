@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const groupModel = require("../modals/groupModel");
-const userModel = require("../")
+const userModel = require("../modals/userModel");
 const groupActivityModel = require("../modals/groupActivityModel")
 const billModel = require("../modals/billModel");
 
@@ -23,6 +23,23 @@ const getGroups= async(req,res) => {
         }
     }
 }//------Cleared
+
+
+const getGroup = async(req,res) => {
+    const groupId = req.params.groupId.trim();
+    if(groupId.length <= 0){
+        return res.status(400).send({'error': 'invalid attempt'})
+    }
+
+    const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)});
+    if(!group){
+        return res.status(400).send({"error": "group cannot be found"})
+    }
+
+    return res.status(200).json(group);
+
+}
+
 const postGroup = async(req,res) => {
     const allowedProperties = ["groupName"];
     const properties = Object.keys(req.body)
@@ -31,7 +48,7 @@ const postGroup = async(req,res) => {
         return res.send({"error": "invalid properties"})
     }
     try{
-        const group = new groupModel({groupName: req.body.groupName, createdBy: req.user.username, createdById: req.user._id, members: [{_id: mongoose.Types.ObjectId(req.user._id), name: req.user.username, email: req.user.email}] ,createdOn: new Date()});
+        const group = new groupModel({groupName: req.body.groupName, createdBy: req.user.username, createdById: req.user._id, members: [{_id: mongoose.Types.ObjectId(req.user._id), name: req.user.username, email: req.user.email}]});
         await group.save();
 
         // setting group activity
@@ -45,8 +62,9 @@ const postGroup = async(req,res) => {
         */
         const groupActivity = new groupActivityModel({
             activityGroupId: group._id, 
+            groupName: group.groupName,
             invokedBy: invokedBy,
-            activity: `created group ${group.groupName} on ${new Date().toDateString} at ${new Date().getHours()}:${new Date().getMinutes()} `});
+            activity: `created`});
         await groupActivity.save();
         res.status(200).json(group);
     }
@@ -60,6 +78,7 @@ const postGroup = async(req,res) => {
     }
 };//-----cleared
 const updateGroup = async(req,res) => {
+    
     if(req.params.groupId.length = 0 || !req.params.groupId){
         return res.status(400).send({"error": "invalid group link"})
     }
@@ -84,7 +103,8 @@ const updateGroup = async(req,res) => {
         }
         if(req.body.members){
             const check = group.members.every(item => {
-                if(item.email === (req.body.members[0].email)){
+                // cheking _id instead of an email
+                if(item._id === (req.body.members[0]._id)){
                    return false
                 }
                 else {
@@ -94,11 +114,19 @@ const updateGroup = async(req,res) => {
             if(check === false){
                 throw new Error("cannot update existing user")
             }
-            const members = [...group.members,...req.body.members]
+
+            let members;
+            if(req.params.action && req.params.action === "removeMember"){
+                members = group.members.filter(member => member._id !== req.body.members[0]._id)
+                
+            }else{
+                members = [...group.members,...req.body.members]
+            }
+          
             group.members = members;
+            console.log(group.members)
         }
         await group.save();
-
 
         /*
         GroupActivity
@@ -109,6 +137,7 @@ const updateGroup = async(req,res) => {
         if(req.body.hasOwnProperty("groupName")){
             const groupActivity = new groupActivityModel({
                 activityGroupId: groupObj._id,
+                groupName: groupObj.groupName,
                 invokedBy: {
                     _id: req.user._id,
                     name: req.user.username
@@ -123,11 +152,13 @@ const updateGroup = async(req,res) => {
             // get memeber.id from threre later on, for now just email
             const groupActivity = new groupActivityModel({
                 activityGroupId: groupObj._id,
+                groupName: group.groupName,
                 invokedBy: {
                     _id: req.user._id,
                     name: req.user.username
                 },
                 'member.email': req.body.members[0].email,
+                'member.name': req.body.members[0].name,
                 activity: `added`
             });
             groupActivity.save();
@@ -135,6 +166,7 @@ const updateGroup = async(req,res) => {
         res.status(200).json(group);
     }
     catch(error){
+        console.log("error", error)
         if(error.message){
             res.send({error: error.message})
         }
@@ -143,6 +175,7 @@ const updateGroup = async(req,res) => {
         }
     }
 };//-----cleared
+
 const removeGroupMember = async(req,res) => {
     if(req.params.groupId.length === 0 || !req.params.groupId || req.params.memberId.length === 0 || !req.params.memberId){
         return res.status(400).send({"error": "invalid attempt"})
@@ -176,40 +209,44 @@ const removeGroupMember = async(req,res) => {
         if(removedMember){
             const removedMemberObj = removedMember.toObject();
             if(removedMemberObj.tempUser === false){
-                await groupActivityModel.insertOne({
+                await groupActivityModel.create({
                     activityGroupId: group._id,
+                    groupName: group.groupName,
                     invokedBy: invokedBy,
                     member: {
                         _id: removedMemberObj._id,
-                        email: removedMemberObj.email
+                        email: removedMemberObj.email,
+                        name: removedMemberObj.name
                     },
-                    activity: `removed from the group`
+                    activity: `removed`
                 })
             }
             else {
-                await groupActivityModel.insertOne({
+                await groupActivityModel.create({
                     activityGroupId: group._id,
+                    groupName: group.groupName,
                     invokedBy: invokedBy,
                     member: {
                         _id: removedMemberObj._id,
-                        email: removedMemberObj.email
+                        email: removedMemberObj.email,
+                        name: removedMemberObj.name,
                     },
-                    activity: `removed from the group`
+                    activity: `removed`
                 })
-
             }
         }
 
         // setActivity while removing the user
         // get memebrIdName before removing from a group
-        res.status(200).json(group);
+        return res.status(200).json(group);
     }
     catch(error){
+        console.log(error)
         if(error.message){
-            res.send({error: error.message})
+            return res.status(500).send({error: error.message})
         }
         else {
-            res.send(error)
+            return res.status(500).send(error)
         }
     }
 }
@@ -223,7 +260,23 @@ const deleteGroup = async(req,res) => {
         // deleting bills associated with group frist and then deleting group
         await billModel.deleteMany({ownerGroup: mongoose.Types.ObjectId(groupId)})
         await group.remove();
+        const removedGroupName = group.groupName;
+        const invokedBy ={
+            _id: req.user._id,
+            name: req.user.username
+        }
+        const groupParties = [...group.members]
         res.status(200).json({"message": "successfully deleted the group"});
+
+        const groupActivity = new groupActivityModel({
+            activityGroupId: group._id,
+            groupName: removedGroupName,
+            invokedBy,
+            activity: `deleted`,
+            groupParties
+        })
+        await groupActivity.save();
+        console.log("deleted", groupActivity)
     }catch(error){
         if(error.message){
             res.send({error: error.message})
@@ -233,10 +286,66 @@ const deleteGroup = async(req,res) => {
         }
     }
 }
+
+/*-----------
+    GROUP SUMMARY
+*/
+
+const getGroupSummary = async(req,res) => {
+    
+    try{
+        //check for allowed properties
+        // check for existence of a group
+        // check for bills length if exists
+        // check if the the lastest bill is of existing month
+        const {groupId} = req.params.trim();
+        console.log("groupId", groupID);
+        const allowedProperties = []
+        // const properties = Object.keys(req.body);
+        // const includes = properties.every(property => allowedProperties.includes(property));
+        // if(!includes){
+        //    return  res.status(400).json({"error": "invalid list of properties"})
+        // }
+
+
+        /*------
+            EXISTENCE OF A GROUP
+        --------*/
+        if(groupId.length <= 0){
+            return res.status(400).send({'error': 'invalid attempt'})
+        }
+        const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)});
+        if(!group){
+            return res.status(400).send({"error": "group cannot be found"})
+        }
+
+        /* GETTING BILLS */
+        const bills = await billModel.find({ownerGroup: mongoose.Types.ObjectId(groupId), $or: [{paidBy : mongoose.Types.ObjectId(req.user._id)}, {"splittedAmongMembers": mongoose.Types.ObjectId(req.user._id)}]})
+        if(!bills){
+            return res.status(200).json({"msg": "no data"})
+        }
+
+        return res.status(200).json(bills)
+
+        // return group detauls as well
+    }catch(error){
+        if(error.message){
+            res.send({error: error.message})
+        }
+        else {
+            res.send(error)
+        }
+    }   
+}
+
+
+
 module.exports = {
     getGroups,
+    getGroup,
     postGroup,
     updateGroup,
     removeGroupMember,
-    deleteGroup
+    deleteGroup,
+    getGroupSummary
 }

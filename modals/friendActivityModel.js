@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-
-
 const friendActivitySchema = new mongoose.Schema({
     invokedBy: {
         _id: {

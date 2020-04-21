@@ -10,15 +10,17 @@ const billActivitySchema = new mongoose.Schema({
             trim: true
         }
     },
-    activityParties: [mongoose.Schema.Types.ObjectId],
-    activityPartiesEmail: [String],
+   groupId: {
+       type: mongoose.Schema.Types.ObjectId
+   },
     activity: {
         type: String,
         trim: true
     },
     createdOn: {
         type: String,
-        trim: true
+        trim: true,
+        default: Date.now()
     }
 }, {timestamps: true})
 

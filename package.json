@@ -13,9 +13,13 @@
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
+    "express-validator": "^6.4.0",
     "jsonwebtoken": "^8.5.1",
     "mongodb": "^3.3.5",
-    "mongoose": "^5.7.14"
+    "mongoose": "^5.7.14",
+    "passport": "^0.4.1",
+    "passport-facebook": "^3.0.0",
+    "passport-google-oauth2": "^0.2.0"
   },
   "devDependencies": {
     "dotenv": "^8.2.0",

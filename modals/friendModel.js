@@ -18,13 +18,18 @@ const friendSchema = new mongoose.Schema({
             email: {
                 type : String,
                 unique: true,
-                trim: true
+                default: null
+            },
+            registered: {
+                type: Boolean,
+                trim: true,
+                default: false
             }
         }
     ]
 })
 
-const friendModel = new module("Friend", friendSchema);
+const friendModel = mongoose.model("Friend", friendSchema);
 
 
 module.exports = friendModel;

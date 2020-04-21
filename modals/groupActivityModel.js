@@ -3,7 +3,11 @@ const mongoose = require("mongoose");
 
 const groupActivitySchema = new mongoose.Schema({
     activityGroupId: {
-        type: mongoose.Types.Schema.ObjectId
+        type: mongoose.Schema.Types.ObjectId
+    },
+    groupName: {
+        type: String,
+        trim: true
     },
     invokedBy: {
         _id: {
@@ -22,13 +26,14 @@ const groupActivitySchema = new mongoose.Schema({
         email: {
             type: String,
             trim: true
+        },
+        name: {
+            type: String,
+            trim: true
         }
     },
+    groupParties: [],
     activity: {
-        type: String,
-        trim: true
-    },
-    createdOn: {
         type: String,
         trim: true
     }
