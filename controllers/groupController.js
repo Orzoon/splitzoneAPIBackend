@@ -48,7 +48,7 @@ const postGroup = async(req,res) => {
         return res.send({"error": "invalid properties"})
     }
     try{
-        const group = new groupModel({groupName: req.body.groupName, createdBy: req.user.username, createdById: req.user._id, members: [{_id: mongoose.Types.ObjectId(req.user._id), name: req.user.username, email: req.user.email}] ,createdOn: new Date()});
+        const group = new groupModel({groupName: req.body.groupName, createdBy: req.user.username, createdById: req.user._id, members: [{_id: mongoose.Types.ObjectId(req.user._id), name: req.user.username, email: req.user.email}]});
         await group.save();
 
         // setting group activity
@@ -62,8 +62,9 @@ const postGroup = async(req,res) => {
         */
         const groupActivity = new groupActivityModel({
             activityGroupId: group._id, 
+            groupName: group.groupName,
             invokedBy: invokedBy,
-            activity: `created group ${group.groupName} on ${new Date().toDateString} at ${new Date().getHours()}:${new Date().getMinutes()} `});
+            activity: `created`});
         await groupActivity.save();
         res.status(200).json(group);
     }
@@ -136,6 +137,7 @@ const updateGroup = async(req,res) => {
         if(req.body.hasOwnProperty("groupName")){
             const groupActivity = new groupActivityModel({
                 activityGroupId: groupObj._id,
+                groupName: groupObj.groupName,
                 invokedBy: {
                     _id: req.user._id,
                     name: req.user.username
@@ -150,11 +152,13 @@ const updateGroup = async(req,res) => {
             // get memeber.id from threre later on, for now just email
             const groupActivity = new groupActivityModel({
                 activityGroupId: groupObj._id,
+                groupName: group.groupName,
                 invokedBy: {
                     _id: req.user._id,
                     name: req.user.username
                 },
                 'member.email': req.body.members[0].email,
+                'member.name': req.body.members[0].name,
                 activity: `added`
             });
             groupActivity.save();
@@ -205,32 +209,35 @@ const removeGroupMember = async(req,res) => {
         if(removedMember){
             const removedMemberObj = removedMember.toObject();
             if(removedMemberObj.tempUser === false){
-                await groupActivityModel.insertOne({
+                await groupActivityModel.create({
                     activityGroupId: group._id,
+                    groupName: group.groupName,
                     invokedBy: invokedBy,
                     member: {
                         _id: removedMemberObj._id,
-                        email: removedMemberObj.email
+                        email: removedMemberObj.email,
+                        name: removedMemberObj.name
                     },
-                    activity: `removed from the group`
+                    activity: `removed`
                 })
             }
             else {
-                await groupActivityModel.insertOne({
+                await groupActivityModel.create({
                     activityGroupId: group._id,
+                    groupName: group.groupName,
                     invokedBy: invokedBy,
                     member: {
                         _id: removedMemberObj._id,
-                        email: removedMemberObj.email
+                        email: removedMemberObj.email,
+                        name: removedMemberObj.name,
                     },
-                    activity: `removed from the group`
+                    activity: `removed`
                 })
             }
         }
 
         // setActivity while removing the user
         // get memebrIdName before removing from a group
-        console.log(group.members)
         return res.status(200).json(group);
     }
     catch(error){
@@ -261,12 +268,15 @@ const deleteGroup = async(req,res) => {
         const groupParties = [...group.members]
         res.status(200).json({"message": "successfully deleted the group"});
 
-        const groupActivity = await groupActivityModel.insertOne({
+        const groupActivity = new groupActivityModel({
             activityGroupId: group._id,
+            groupName: removedGroupName,
             invokedBy,
-            activity: `deleted group ${removedGroupName}`,
+            activity: `deleted`,
             groupParties
         })
+        await groupActivity.save();
+        console.log("deleted", groupActivity)
     }catch(error){
         if(error.message){
             res.send({error: error.message})

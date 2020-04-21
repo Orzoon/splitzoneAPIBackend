@@ -340,7 +340,6 @@ const getUserSummary = async(req,res) => {
     }
 }
 
-
 const getUserMisc = async(req,res) => {
     try{
         const userID = req.user._id;
@@ -380,7 +379,6 @@ const getUserMisc = async(req,res) => {
 
 }
 
-
 const getActivitySummary = async(req,res) => {
     try{
 
@@ -401,6 +399,7 @@ const getActivitySummary = async(req,res) => {
         const groupsUserIsIn = await groupModel.find({"members._id": mongoose.Types.ObjectId(req.user._id)});
         const groupsArray = [];
         let groupActivity = [];
+
         groupsUserIsIn.forEach(group => groupsArray.push(group._id));
 
         await Promise.all(groupsArray.map(async function(groupId){
@@ -414,6 +413,13 @@ const getActivitySummary = async(req,res) => {
                 groupActivity.push(...groupActivities)
             }
         }))
+        /* Added later since user in no longer present in group */
+        const deletedGroupActivities = await groupActivityModel.aggregate([
+            {$match: {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}},
+            {$limit: 6},
+            {$sort: sort}
+        ])
+        groupActivity.push(...deletedGroupActivities)
 
 
         const combinedActivityArray = [...userActivity, ...groupActivity];
