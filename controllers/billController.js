@@ -15,7 +15,7 @@ const getBills = async(req,res) => {
         }
         const bills = await billModel.aggregate([
             {$match: {ownerGroup: mongoose.Types.ObjectId(groupId)}},
-            {$sort: {dateCreated: -1}},
+            {$sort: {createdAt: -1}},
             {$limit: parseInt(limit,10)},
             {$skip: parseInt(skip,10)}
         ]).exec();

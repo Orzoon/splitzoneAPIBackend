@@ -9,33 +9,43 @@ const userSchema = new mongoose.Schema({
         email: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            lowercase: true,
+            trim: true
         },
         password : {
             type: String,
             trim: true,
-        },
-        dateCreated: {
-            type: Date
-        },
-        created: {
-            type: Boolean,
-            required: true
         },
         groups: [mongoose.Schema.Types.ObjectId],
         verified: {
             type: Boolean,
             default: false
         },
+        userType: {
+            type: String,
+            enum: ["PREMIUM", "NORMAL"],
+            default: "NORMAL"
+        },
+        links: {
+          passwordReset: [String, String],
+          verification: [String],
+          referral: [String],
+          referralFrom: [String]
+        },
+        settings: {
+            groups: [String],
+            friends: [String],
+            bills: [String],
+            summary: [String],
+            updates: [String]
+        },
         tokens:[{
             token: {
                 type: String,
                 trim: true,
             }
-        }],
-        tempUser: {
-            type: Boolean
-        } 
+        }]
 }, {timestamps:true});
 
 const User = mongoose.model('User', userSchema);

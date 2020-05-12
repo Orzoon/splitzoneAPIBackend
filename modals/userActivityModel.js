@@ -8,6 +8,15 @@ const userActivitySchema = new mongoose.Schema({
     activity: {
         type: String,
         trim: true
+    },
+    invokedBy: {
+        _id: {
+            type: mongoose.Schema.Types.ObjectId
+        },
+        name: {
+            type:String,
+            trim: true
+        }
     }
 },{timestamps: true})
 

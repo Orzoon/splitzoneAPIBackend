@@ -1,7 +1,6 @@
 const jwt = require("jsonwebtoken");
 const userModel = require('../modals/userModel')
 
-
 const auth = async(req,res,next) => {
     try{
         if(!req.headers.authorization){
@@ -12,11 +11,15 @@ const auth = async(req,res,next) => {
             throw new  Error("token not found in header");
         }
         const jwtVerify = jwt.verify(token, process.env.TOKENSECRET)
-        const user = await userModel.findOne({$and: [{_id: jwtVerify.userID}, {"tokens.token": token}, {created: true}]});
+        const user = await userModel.findOne({$and: [{_id: jwtVerify.userID}, {"tokens.token": token}]});
         if(!user){
             throw new Error("please authenticate")
         }
         const userObj = user.toObject();
+
+        // passing token for the next route
+        userObj.token = token;
+        
         delete userObj.tokens;
         delete userObj.password;
         req.user = userObj;

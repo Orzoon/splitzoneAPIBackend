@@ -17,8 +17,8 @@ const friendSchema = new mongoose.Schema({
             },
             email: {
                 type : String,
-                unique: true,
-                default: null
+                default: null,
+                lowercase: true
             },
             registered: {
                 type: Boolean,

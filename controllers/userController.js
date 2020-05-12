@@ -2,11 +2,12 @@ const mongoose = require("mongoose");
 const userModel = require('../modals/userModel');
 const billModel = require("../modals/billModel");
 const groupModel = require('../modals/groupModel');
+const friendModel = require('../modals/friendModel');
 const bcrypt = require('bcryptjs');
 const jwt = require("jsonwebtoken");
 
 /*  Express-Validator  */
-const { check, validationResult } = require('express-validator');
+const {body, validationResult} = require('express-validator');
 
 /* Importing entire ActivityModals */
 const userActivityModel = require("../modals/userActivityModel");
@@ -14,86 +15,180 @@ const friendActivityModel = require("../modals/friendActivityModel");
 const groupActivityModel = require("../modals/groupActivityModel");
 const billActivityModel = require("../modals/billActivityModel")
 
+const {Errorhandler} = require("../util/error");
 
 // single User API
-const userSignin = async(req,res) => {
+const userSignin = async(req,res, next) => {
     /* validation errors */
-    const errors = validationResult(req).array();
-
-    //-> validation errors!
-    if(errors.length > 0){
-        return res.status(422).json(errors)
+    const errors = validationResult(req);
+    if(!errors.isEmpty()){
+        //return res.status(400).send({errors: errors.array()})
+        throw new Errorhandler(400, errors.array())
     }
-    const {email, password} = req.body;
     try{
+        const {email, password} = req.body;
         const userExists = await userModel.findOne({email: email});
         if(!userExists){
-            throw new Error('User does not exist');
+            //return res.status(400).send({error: 'user doesnot exist'})
+            throw new Errorhandler(400, 'User doesnot exist')
         }
         const passwordCheck = await bcrypt.compare(password, userExists.password);
         if(!passwordCheck){
-            throw new Error('Invalid username or password');
+            //throw new Error('Invalid username or password');
+            //return res.status(400).send({error: 'Invalid username or password'})
+            throw new Errorhandler(400, 'Invalid username or password')
         }
         const token = jwt.sign({userID: userExists._id}, process.env.TOKENSECRET);
         const user = await userModel.findByIdAndUpdate(userExists._id, {$push: {"tokens": {token: token}}}, {useFindAndModify: false});
         const userObj = user.toObject();
         delete userObj.password;
         delete userObj.tokens;
-        const userActivity = new userActivityModel({activityUserId: user._id, activity: `you signed-in on ${new Date().toDateString()} at ${new Date().getHours()}:${new Date().getMinutes()} `});
+
+        /* USER SIGNIN ACTIVITY */
+        const userActivity = new userActivityModel({
+            activityUserId: user._id, 
+            activity: `signedIn`,
+            invokedBy: {
+                _id: mongoose.Types.ObjectId(user._id)
+            }
+        });
         await userActivity.save();
-        res.status(200).json({userObj, token});
+
+        // sending response
+        return res.status(200).json({userObj, token});
     }
     catch(error){
-        if(error.message){
-            res.send({error: error.message})
-        }
-        else {
-            res.send(error)
-        }
+       if(error){
+           next(error)
+       }
     }
 }
 
-const userSignup = async(req,res) => {
-    const {email,password, name} = req.body;
-    // validate email and password
-    //check for pre-exsisting data
+const userSignup = async(req,res, next) => {
+    // validation errors
+    const errors = validationResult(req);
+    if(!errors.isEmpty()){
+        //return res.status(400).send({errors : errors.array()})
+        throw new Errorhandler(400, errors.array())
+    }
     try{
+        const {email,password, name} = req.body;
         const exists = await userModel.findOne({email: email});
         if(exists){
-            throw new Error ('User already exists');
+            throw new Errorhandler (400, 'User already exists');
+        }
+
+        // check the existence of user in the friendCollection first
+        let friendID = mongoose.Types.ObjectId();
+        const userInFriendModel = await friendModel.findOne({"friends.email": email}, {friends:{$elemMatch: {'email': email}}});
+        if(userInFriendModel){
+            friendID = userInFriendModel.friends[0]._id;
         }
         const hashedPassword = await bcrypt.hash(password,10);
-        const user = new userModel({email: email, password: hashedPassword, username: name});
+        const user = await new userModel({_id : mongoose.Types.ObjectId(friendID) ,email: email, password: hashedPassword, username: name, created: true});
         await user.save();
+
         const token = jwt.sign({userID: user._id}, process.env.TOKENSECRET);
         await userModel.findByIdAndUpdate(user._id, {$push: {"tokens": {token: token}}}, {useFindAndModify: false});
         const userObj = user.toObject();
         delete userObj.tokens;
         delete userObj.password;
-        const userActivity = new userActivityModel({activityUserId: req.user._id, activity: `you created your Account on ${new Date().toDateString} at ${new Date().getHours()}:${new Date().getMinutes()} `});
+
+        /* USER SIGNUPActivity ACTIVITY */
+        const userActivity = new userActivityModel({
+            activityUserId:user._id, 
+            activity: `signedUp`,
+            invokedBy: {
+                _id: mongoose.Types.ObjectId(user._id)
+            }
+        });
         await userActivity.save();
-        return res.status(200).json({userObj, token});
-    }
-    catch(error){
-        if(error.message){
-            return res.send({error: error.message})
-        }
-        else {
-            return res.send(error)
-        }
-    
+        return res.status(201).json({userObj, token});
+    }catch(error){
+        console.log("error", error)
+       if(error){
+           next(error);
+       }
     }
 
 }
+
 const getUser = async(req,res) => {
     try{
-      return res.json(req.user);
+      return res.status(200).json(req.user);
     }
     catch(error){
         return res.status(500).send();
     }
 }
 
+const logoutUser = async(req,res, next) => {
+    try{
+        const user = await userModel.findOne({_id: mongoose.Types.ObjectId(req.user._id)})
+        if(!user){
+            throw new Errorhandler(400, "invalid attempt")
+        }
+        const filteredTokens = user.tokens.filter(token => token.token.toString() !== req.user.token.toString())
+        user.tokens = filteredTokens;
+        await user.save();
+
+        // setting logout activity 
+        return res.status(200).send();
+    }
+    catch(e){
+        if(e){
+            next(e)
+        }
+    }
+}
+
+
+/**  Validation **/
+const validateUser = (type) => {
+    switch(type){
+        case "userSignUp":
+            return [
+                body('email')
+                    .exists()
+                    .isEmail()
+                    .withMessage('Invalid email')
+                    .normalizeEmail(),
+                body('name')
+                    .exists()
+                    .notEmpty()
+                    .withMessage('Name cannot be empty')
+                    .isLength({min: 4})
+                    .withMessage('Name should be at least 4 characters long'),
+                body('password')
+                    .exists()
+                    .notEmpty()
+                    .withMessage('Password field is required')
+                    .isLength({min: 6})
+                    .withMessage('Password should be at least 6 characters long')
+            ]
+            case "userSignIn":
+                return [
+                    body('email')
+                        .exists()
+                        .isEmail()
+                        .withMessage('Invalid email')
+                        .normalizeEmail(),
+                    body('password')
+                        .exists()
+                        .notEmpty()
+                        .withMessage('Password field is required')
+                        .isLength({min: 6})
+                        .withMessage('Password should be at least 6 characters long')
+                ]
+    }
+}
+
+
+
+
+
+/*********************************************/
+/*------------ROUTES OTHER THAN USERS---------------------*/
 /*User Summary */
 const getUserSummary = async(req,res) => {
     // based on Month and year
@@ -214,7 +309,7 @@ const getUserSummary = async(req,res) => {
     
             // paid by others including user
             /* Owe */
-            if(bill.paidBy._id.toString() !== req.user._id.toString()){
+            if(bill.paidBy._id.toString() !== req.user._id.toString() && bill.splittedAmongMembers.some(id => id.toString() === req.user._id.toString())){
                     // divided equally
                     if(bill.dividedEqually){
                         const amountValue = bill.paidAmount/bill.splittedAmongMembers.length;
@@ -265,7 +360,7 @@ const getUserSummary = async(req,res) => {
     
             // paid by others including user
             /* Owe */
-            if(bill.paidBy._id.toString()  !== req.user._id.toString() ){
+            if(bill.paidBy._id.toString() !== req.user._id.toString() && bill.splittedAmongMembers.some(id => id.toString() === req.user._id.toString())){
                     // divided equally
                     if(bill.dividedEqually){
                         const amountValue = bill.paidAmount/bill.splittedAmongMembers.length;
@@ -350,7 +445,9 @@ const getUserMisc = async(req,res) => {
         if(!groups){
             return res.status(200).json({
                 "totalGroups": 0,
-                "totalBills" : 0
+                "totalBills" : 0,
+                "totalBalance": 0,
+                "summaryOverlay": false
             })
         }
         
@@ -364,10 +461,51 @@ const getUserMisc = async(req,res) => {
             billCount += bills
         }))
 
+        /* calculation Total balance*/
+        /* total Balance --> bills paid by user, bills paid by other including a user */
+        let totalBalance = 0;
+        let summaryOverlay = false;
+        await Promise.all(groupIDArray.map(async(groupID) => {
+            const bills =await billModel.find({ownerGroup: mongoose.Types.ObjectId(groupID)});
+            
+            if(bills){
+                bills.forEach(bill => {
+                    // total balance is including lent and spent and including how much user owe to others
+                    // if paid by user add total
+                    if(bill.paidBy._id.toString() === req.user._id.toString()){
+                        totalBalance += bill.paidAmount;
+
+                        // setting overalyvalue
+                        summaryOverlay = true;
+                    }
+
+                    // if paid by other then get the users share
+                    if(bill.paidBy._id.toString() !== req.user._id.toString() && bill.splittedAmongMembers.some(id => id.toString() === req.user._id.toString())){
+                        if(summaryOverlay !== true){
+                            summaryOverlay = true
+                        }
+                        // divided equally
+                        if(bill.dividedEqually){
+                            const amountValue = bill.paidAmount/bill.splittedAmongMembers.length;
+                            totalBalance += amountValue
+                        }
+                        if(!bill.dividedEqually){
+                             // finding index of user
+                            const userIndex = bill.divided.findIndex(item => item._id.toString()  === req.user._id.toString() )
+                            const amountValue = bill.divided[userIndex].amount;
+                            totalBalance += amountValue
+                        }
+                }
+                })
+            }
+        }))
+
         // GroupsCount BillsCount terminate
         return res.status(200).json({
             "totalGroups": groups.length,
-            "totalBills": billCount
+            "totalBills": billCount,
+            "totalBalance": totalBalance,
+            "summaryOverlay": summaryOverlay
         })
 
 
@@ -386,13 +524,16 @@ const getActivitySummary = async(req,res) => {
         // const userActivity; //basedON user ID
         // const groupActivity;//basedonGroupID user is in
         // const billActivity;
-
+        const {step} = req.query;
+        if(!Number(step)){
+            throw Error("not a number")
+        }
         const sort = {'createdAt': 1}
 
         // getting userActivity
         const userActivity = await userActivityModel.aggregate([
                                             {$match: {activityUserId: mongoose.Types.ObjectId(req.user._id)}},
-                                            {$limit: 10},
+                                            {$limit: 11},
                                             {$sort: sort}
         ])
        
@@ -405,7 +546,7 @@ const getActivitySummary = async(req,res) => {
         await Promise.all(groupsArray.map(async function(groupId){
             const groupActivities = await groupActivityModel.aggregate([
                     {$match: {activityGroupId: mongoose.Types.ObjectId(groupId)}},
-                    {$limit: 6},
+                    {$limit: 11*step},
                     {$sort: sort}
             ])
 
@@ -416,7 +557,7 @@ const getActivitySummary = async(req,res) => {
         /* Added later since user in no longer present in group */
         const deletedGroupActivities = await groupActivityModel.aggregate([
             {$match: {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}},
-            {$limit: 6},
+            {$limit: 11*step},
             {$sort: sort}
         ])
         groupActivity.push(...deletedGroupActivities)
@@ -428,18 +569,30 @@ const getActivitySummary = async(req,res) => {
             const secondDate =  new Date(b.createdAt);
             return secondDate - firstDate
         })
+        const removed = combinedActivityArray.splice(11*step,combinedActivityArray.length - 1);
 
-        const removed = combinedActivityArray.splice(11,combinedActivityArray.length - 1);
-        return res.status(200).json(combinedActivityArray)
+        let stepInfo = {};
+        if(combinedActivityArray.length > (10 * step)){
+           combinedActivityArray.pop();
+           stepInfo.exists = true;
+           stepInfo.currentStep = step;
+        }
+        else {
+            stepInfo.exists = false;
+        }
+        return res.status(200).json({activities: combinedActivityArray, stepInfo})
     }catch(error){
         console.log(error)
     }
 }
+
 module.exports = {
     userSignin,
     userSignup,
     getUser,
     getUserSummary,
     getUserMisc,
-    getActivitySummary
+    getActivitySummary,
+    logoutUser,
+    validateUser
 }

@@ -1,17 +1,14 @@
 const express = require('express');
 const userRoutes = express.Router();
 const auth = require('../auth/auth');
-
-// importing from controller
 const userController = require('../controllers/userController')
-
-
-/*  Express-Validator  */
 const { check, validationResult } = require('express-validator');
 
+
 /*------USER---------*/
-userRoutes.post('/user/signin', check('email').isEmail(), userController.userSignin);
-userRoutes.post('/user/signup', userController.userSignup);
+userRoutes.post('/user/signin', userController.validateUser('userSignIn'), userController.userSignin);
+userRoutes.post('/user/signup',userController.validateUser('userSignUp'), userController.userSignup);
+userRoutes.post('/user/logout', auth, userController.logoutUser);
 userRoutes.get('/app/user', auth, userController.getUser);
 
 /* users summary */

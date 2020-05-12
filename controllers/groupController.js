@@ -4,48 +4,128 @@ const userModel = require("../modals/userModel");
 const groupActivityModel = require("../modals/groupActivityModel")
 const billModel = require("../modals/billModel");
 
-const getGroups= async(req,res) => {
+const {Errorhandler} = require("../util/error")
+const getGroups= async(req,res, next) => {
     //vaidation
     const userId = req.user._id;
     try{
         const groups= await groupModel.aggregate([
             {$match: {"members._id": mongoose.Types.ObjectId(userId)}},
-            {$sort: {createdOn: 1}}
+            {$sort: {createdAt: -1}}
         ]).exec();
+        if(groups){
+           await Promise.all(groups.map(async(group) => {
+               const billCount = await billModel.find({ownerGroup: mongoose.Types.ObjectId(group._id)}).countDocuments();
+                console.log()
+               group.billCount = billCount;
+           }))
+        }
         res.status(200).json(groups)
     }
     catch(error){
-        if(error.message){
-            res.send({error: error.message});
-        }
-        else {
-            res.send(error);
+        if(error){
+            next(error)
         }
     }
-}//------Cleared
-
-
-const getGroup = async(req,res) => {
-    const groupId = req.params.groupId.trim();
-    if(groupId.length <= 0){
-        return res.status(400).send({'error': 'invalid attempt'})
-    }
-
-    const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)});
-    if(!group){
-        return res.status(400).send({"error": "group cannot be found"})
-    }
-
-    return res.status(200).json(group);
-
 }
 
-const postGroup = async(req,res) => {
+const getGroup = async(req,res,next) => {
+    try {    
+        const groupId = req.params.groupId.trim();
+        if(groupId.length <= 0){
+            //return res.status(400).send({'error': 'invalid attempt'})
+            throw new Errorhandler(400, 'invalid attempt')
+        }
+        const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)});
+        if(!group){
+            //return res.status(400).send({"error": "group cannot be found"})
+            throw new Errorhandler(400, 'group cannot be found')
+        }
+        const bgDetails = {}
+        // send bills Details Info
+        if(req.query.bgDetails === "true"){
+            const totalBills = await billModel.find({ownerGroup: mongoose.Types.ObjectId(groupId)}).countDocuments();
+            // setting count
+            bgDetails.totalBills = totalBills;
+            if(totalBills && totalBills === 0){
+                bgDetails.totalBalance = 0;
+                bgDetails.youLent = 0;
+                bgDetails.youOwe = 0;
+            }
+            else{
+                const Bills = await billModel.find({ownerGroup: mongoose.Types.ObjectId(groupId)});
+                //OutterStroing
+                let totalBalance = 0;
+                let totalLent = 0;
+                let totalOwe = 0;
+                   /* lent */
+                Bills.forEach(bill => {
+                    totalBalance += bill.paidAmount;
+                    // add totalBalanceHere
+                    //paidByuser not including him
+                    if((bill.paidBy._id.toString() === req.user._id.toString())  && (bill.splittedAmongMembers.every(id => req.user._id.toString() !== id.toString()))) {
+                        totalLent += bill.paidAmount;
+                    }
+                    // paidBy user and including user 
+                    /* lent */
+                    if((bill.paidBy._id.toString()  === req.user._id.toString()) && (bill.splittedAmongMembers.some(id => req.user._id.toString() === id.toString()))){
+                        // divided equally
+                        if(bill.dividedEqually){
+                            const amountShare = bill.paidAmount/bill.splittedAmongMembers.length;
+                            const amountValue = bill.paidAmount - amountShare
+                            totalLent += amountValue;
+                        }
+                        // divided unequally
+                        if(!bill.dividedEqually){
+                            // finding index of user
+                            const userIndex = bill.divided.findIndex(item => item._id.toString()  === req.user._id.toString() )
+                            const amountShare = bill.divided[userIndex].amount;
+                            const amountValue = bill.paidAmount - amountShare
+                            totalLent += amountValue;
+                        }
+                    }
+
+                    // paid by others including user
+                    /* Owe */
+                    if(bill.paidBy._id.toString() !== req.user._id.toString() && bill.splittedAmongMembers.some(id => id.toString() === req.user._id.toString())){
+                            // divided equally
+                            if(bill.dividedEqually){
+                                const amountValue = bill.paidAmount/bill.splittedAmongMembers.length;
+                                totalOwe += amountValue;
+                            }
+                            if(!bill.dividedEqually){
+                                 // finding index of user
+                                 const userIndex = bill.divided.findIndex(item => item._id.toString()  === req.user._id.toString() )
+                                 const amountValue = bill.divided[userIndex].amount;
+                                 totalOwe += amountValue;
+                            }
+                    }                   
+
+                })
+
+                // setting values
+                bgDetails.totalBalance = +totalBalance.toFixed(2);
+                bgDetails.totalLent = +totalLent.toFixed(2);
+                bgDetails.totalOwe = +totalOwe.toFixed(2);
+            }
+        }
+        const groupObj = group.toObject();
+        groupObj.bgDetails = bgDetails;
+        return res.status(200).json(groupObj);
+    }catch(error){
+        if(error){
+            next(error)
+        }
+    }
+}
+
+const postGroup = async(req,res, next) => {
     const allowedProperties = ["groupName"];
     const properties = Object.keys(req.body)
     const includes = properties.every(item => allowedProperties.includes(item))
     if(!includes){
-        return res.send({"error": "invalid properties"})
+        //return res.send({"error": "invalid properties"})
+        throw new Errorhandler(400, 'invalid properties')
     }
     try{
         const group = new groupModel({groupName: req.body.groupName, createdBy: req.user.username, createdById: req.user._id, members: [{_id: mongoose.Types.ObjectId(req.user._id), name: req.user.username, email: req.user.email}]});
@@ -57,44 +137,43 @@ const postGroup = async(req,res) => {
             name: req.user.username
         }
 
-        /*
-        GROUP ACTIVITY
-        */
+        /*GROUP ACTIVITY*/
         const groupActivity = new groupActivityModel({
             activityGroupId: group._id, 
             groupName: group.groupName,
             invokedBy: invokedBy,
             activity: `created`});
         await groupActivity.save();
-        res.status(200).json(group);
+        return res.status(200).json(group);
+       
     }
     catch(error){
-        if(error.message){
-            res.send({error: error.message})
-        }
-        else {
-            res.send(error)
+        if(error){
+            next(error)
         }
     }
-};//-----cleared
-const updateGroup = async(req,res) => {
+};
+const updateGroup = async(req,res, next) => {
     
     if(req.params.groupId.length = 0 || !req.params.groupId){
-        return res.status(400).send({"error": "invalid group link"})
+        //return res.status(400).send({"error": "invalid group link"})
+        throw new Errorhandler(400, 'invalid group link')
     }
     const allowedProperties = ["groupName", "members"];
     const properties = Object.keys(req.body)
     if(req.body.members){
         if(typeof(req.body.members) != "object"){
-            return res.status(400).send({"error": "invalid update"})
+            //return res.status(400).send({"error": "invalid update attempt"})
+            throw new Errorhandler(400, 'invalid update attempt')
         }
     }
     const includes = properties.every((item) => allowedProperties.includes(item));
     if(!includes){
-        return res.status(400).send({"error": "invalid update attempt"})
+        //return res.status(400).send({"error": "invalid update attempt"})
+        throw new Errorhandler(400, 'invalid update attempt')
     }
     try{
-        const group = await groupModel.findOne({createdById: req.user._id, _id: mongoose.Types.ObjectId(req.params.groupId)}, {members: 1, groupName: 1});
+        const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}, {members: 1, groupName: 1});
         if(!group){
             throw new Error('Group doesnot exist, create one');
         }
@@ -117,20 +196,16 @@ const updateGroup = async(req,res) => {
 
             let members;
             if(req.params.action && req.params.action === "removeMember"){
-                members = group.members.filter(member => member._id !== req.body.members[0]._id)
+                members = group.members.filter(member => member._id.toString() !== req.body.members[0]._id.toString())
                 
             }else{
                 members = [...group.members,...req.body.members]
             }
-          
             group.members = members;
-            console.log(group.members)
         }
         await group.save();
 
-        /*
-        GroupActivity
-        */
+        /*GroupActivity*/
         const groupObj = group.toObject();
 
         /* check for activity status to set for updated_property */
@@ -157,31 +232,30 @@ const updateGroup = async(req,res) => {
                     _id: req.user._id,
                     name: req.user.username
                 },
-                'member.email': req.body.members[0].email,
                 'member.name': req.body.members[0].name,
                 activity: `added`
             });
             groupActivity.save();
         }
-        res.status(200).json(group);
+
+        return res.status(200).json(group);
     }
     catch(error){
-        console.log("error", error)
-        if(error.message){
-            res.send({error: error.message})
-        }
-        else {
-            res.send(error)
-        }
+      if(error){
+          next(error)
+      }
     }
-};//-----cleared
+};
 
-const removeGroupMember = async(req,res) => {
+const removeGroupMember = async(req,res, next) => {
+    // validate body of the user to be removed--> NOTE
+    // console.log("reqBody", req.body);
+    // console.log("reqbody", req.body)
     if(req.params.groupId.length === 0 || !req.params.groupId || req.params.memberId.length === 0 || !req.params.memberId){
         return res.status(400).send({"error": "invalid attempt"})
     }
     try{
-        const group = await groupModel.findOne({createdById: req.user._id, _id: mongoose.Types.ObjectId(req.params.groupId)}, {members: 1, groupName: 1});
+        const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}, {members: 1, groupName: 1});
         if(!group){
             throw new Error('Group doesnot exist, create one');
         }
@@ -194,59 +268,57 @@ const removeGroupMember = async(req,res) => {
             group.members = [...filteredArray]
         }
         await group.save();
-        
-
         /*
         groupActivityModel.js
         */
-        const removedMember = await userModel.findOne({_id: mongoose.Types.ObjectId(memberToBeRemoved)}, {email: 1, username: 1, tempUser: 1});
+        // const removedMember = await userModel.findOne({_id: mongoose.Types.ObjectId(memberToBeRemoved)}, {email: 1, username: 1, tempUser: 1});
+        // console.log("removedMember",removedMember)
         const invokedBy ={
             _id: req.user._id,
             name: req.user.username
         }
         // * member if does exist in our database
         // what if he deleted his/her account???and still the details exist in the group!!!!
-        if(removedMember){
-            const removedMemberObj = removedMember.toObject();
-            if(removedMemberObj.tempUser === false){
-                await groupActivityModel.create({
-                    activityGroupId: group._id,
-                    groupName: group.groupName,
-                    invokedBy: invokedBy,
-                    member: {
-                        _id: removedMemberObj._id,
-                        email: removedMemberObj.email,
-                        name: removedMemberObj.name
-                    },
-                    activity: `removed`
-                })
-            }
-            else {
-                await groupActivityModel.create({
-                    activityGroupId: group._id,
-                    groupName: group.groupName,
-                    invokedBy: invokedBy,
-                    member: {
-                        _id: removedMemberObj._id,
-                        email: removedMemberObj.email,
-                        name: removedMemberObj.name,
-                    },
-                    activity: `removed`
-                })
-            }
-        }
+        // if(removedMember){
+        //     console.log("inside Remove")
+        //     const removedMemberObj = removedMember.toObject();
+        //     if(removedMemberObj.tempUser === false){
+        //         const activity = await groupActivityModel.create({
+        //             activityGroupId: group._id,
+        //             groupName: group.groupName,
+        //             invokedBy: invokedBy,
+        //             member: {
+        //                 //_id: removedMemberObj._id,
+        //                //email: removedMemberObj.email,
+        //                 name: removedMemberObj.name
+        //             },
+        //             activity: `removed`
+        //         })
+        //         console.log("activtiy", activity)
+        //     }
+        //     else {
+                
+        const activity = await groupActivityModel.create({
+            activityGroupId: group._id,
+            groupName: group.groupName,
+            invokedBy: invokedBy,
+            member: {
+                _id: req.params.memberId,
+                email: req.body.email,
+                name: req.body.name,
+            },
+            activity: `removed`
+        })
+    //}
+        // }
 
         // setActivity while removing the user
         // get memebrIdName before removing from a group
         return res.status(200).json(group);
     }
     catch(error){
-        console.log(error)
-        if(error.message){
-            return res.status(500).send({error: error.message})
-        }
-        else {
-            return res.status(500).send(error)
+        if(error){
+            next(error)
         }
     }
 }
@@ -286,7 +358,6 @@ const deleteGroup = async(req,res) => {
         }
     }
 }
-
 /*-----------
     GROUP SUMMARY
 */
@@ -299,7 +370,6 @@ const getGroupSummary = async(req,res) => {
         // check for bills length if exists
         // check if the the lastest bill is of existing month
         const {groupId} = req.params.trim();
-        console.log("groupId", groupID);
         const allowedProperties = []
         // const properties = Object.keys(req.body);
         // const includes = properties.every(property => allowedProperties.includes(property));

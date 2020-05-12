@@ -31,11 +31,9 @@ const GroupSchema = new mongoose.Schema({
     },
     createdById: {
         type: mongoose.Schema.Types.ObjectId
-    },
-    createdOn: {
-        type: Date,
     }
 }, {timestamps: true})
+
 const Group = mongoose.model("Group", GroupSchema)
 
 module.exports = Group;
