@@ -528,39 +528,51 @@ const getActivitySummary = async(req,res) => {
         if(!Number(step)){
             throw Error("not a number")
         }
-        const sort = {'createdAt': 1}
+        const sort = {createdAt: 1}
 
         // getting userActivity
         const userActivity = await userActivityModel.aggregate([
                                             {$match: {activityUserId: mongoose.Types.ObjectId(req.user._id)}},
-                                            {$limit: 11},
+                                            {$limit: 500*step},
                                             {$sort: sort}
         ])
        
         const groupsUserIsIn = await groupModel.find({"members._id": mongoose.Types.ObjectId(req.user._id)});
         const groupsArray = [];
+
         let groupActivity = [];
 
-        groupsUserIsIn.forEach(group => groupsArray.push(group._id));
+        // ------ START OF L1
+        // groupsUserIsIn.forEach(group => groupsArray.push(group._id));
 
-        await Promise.all(groupsArray.map(async function(groupId){
-            const groupActivities = await groupActivityModel.aggregate([
-                    {$match: {activityGroupId: mongoose.Types.ObjectId(groupId)}},
-                    {$limit: 11*step},
-                    {$sort: sort}
-            ])
+        // await Promise.all(groupsArray.map(async function(groupId){
+        //     const groupActivities = await groupActivityModel.aggregate([
+        //             {$match: {activityGroupId: mongoose.Types.ObjectId(groupId)}},
+        //             {$limit: 500*step},
+        //             {$sort: sort}
+        //     ])
 
-            if(groupActivities){
-                groupActivity.push(...groupActivities)
-            }
-        }))
+        //     if(groupActivities){
+        //         groupActivity.push(...groupActivities)
+        //     }
+        // }))
+        //----> END OF L 1
+
+        /* CHANGED LOGIC TO INCLUDE ACTIVITES INTO REMOVED USERS */
+        const groupActivities = await groupActivityModel.aggregate([
+                        {$match: {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}},
+                        {$project: {groupParties: 0}},
+                        {$limit: 500*step},
+                        {$sort: sort}])
+        console.log("groupActivities", groupActivities)
+         groupActivity.push(...groupActivities)
         /* Added later since user in no longer present in group */
-        const deletedGroupActivities = await groupActivityModel.aggregate([
-            {$match: {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}},
-            {$limit: 11*step},
-            {$sort: sort}
-        ])
-        groupActivity.push(...deletedGroupActivities)
+        // const deletedGroupActivities = await groupActivityModel.aggregate([
+        //     {$match: {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}},
+        //     {$limit: 500*step},
+        //     {$sort: sort}
+        // ])
+        //groupActivity.push(...deletedGroupActivities)
 
 
         const combinedActivityArray = [...userActivity, ...groupActivity];

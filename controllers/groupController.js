@@ -3,8 +3,12 @@ const groupModel = require("../modals/groupModel");
 const userModel = require("../modals/userModel");
 const groupActivityModel = require("../modals/groupActivityModel")
 const billModel = require("../modals/billModel");
-
+const socketModal = require('../modals/socketModel');
 const {Errorhandler} = require("../util/error")
+
+
+const io = require("../util/socket").getIO();
+
 const getGroups= async(req,res, next) => {
     //vaidation
     const userId = req.user._id;
@@ -173,7 +177,7 @@ const updateGroup = async(req,res, next) => {
         throw new Errorhandler(400, 'invalid update attempt')
     }
     try{
-        const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}, {members: 1, groupName: 1});
+        const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}/*, {members: 1, groupName: 1}*/);
         if(!group){
             throw new Error('Group doesnot exist, create one');
         }
@@ -193,7 +197,6 @@ const updateGroup = async(req,res, next) => {
             if(check === false){
                 throw new Error("cannot update existing user")
             }
-
             let members;
             if(req.params.action && req.params.action === "removeMember"){
                 members = group.members.filter(member => member._id.toString() !== req.body.members[0]._id.toString())
@@ -203,6 +206,7 @@ const updateGroup = async(req,res, next) => {
             }
             group.members = members;
         }
+        const groupParties = [...group.members]
         await group.save();
 
         /*GroupActivity*/
@@ -222,10 +226,12 @@ const updateGroup = async(req,res, next) => {
             groupActivity.save();
         };
 
+        // just membersActivity since groupName modifaction is not allowed at the moment
+        let groupActivity = null;
         if(req.body.hasOwnProperty("members")){
             // NOTE -----> Member ID and email already creadted on friendList 
             // get memeber.id from threre later on, for now just email
-            const groupActivity = new groupActivityModel({
+             groupActivity = new groupActivityModel({
                 activityGroupId: groupObj._id,
                 groupName: group.groupName,
                 invokedBy: {
@@ -233,16 +239,43 @@ const updateGroup = async(req,res, next) => {
                     name: req.user.username
                 },
                 'member.name': req.body.members[0].name,
-                activity: `added`
+                activity: `added`,
+                groupParties
             });
             groupActivity.save();
         }
+        /* SOCKET_IO_CHANNEL */
+        //optimization note setMember prop to onmiMemberornot and omit the socket
+        const socket_ToAddedUser_Exists = await socketModal.findOne({userEmail: req.body.members[0].email});
+        /* to Added User */
+        if(socket_ToAddedUser_Exists){
+            // push data to the addedUser
+            io.to(socket_ToAddedUser_Exists.socketId).emit("S_AddedTOGroup", group)
+            // send GroupActivity ActivityNotification as well
+        }
+        const membersID = group.members.map(member => member._id)
 
+        /* send notification to everyOne in the socket */
+        const socket_GroupMembers_Exist = await socketModal.find({"userId": {$in: membersID}}) 
+        
+        if(socket_GroupMembers_Exist.length > 0){
+            // send Notification and activityData to everyone
+            /* NOTIFICATION */
+            socket_GroupMembers_Exist.forEach(socketMember => {
+                /*notificationCount*/
+                io.to(socketMember.socketId).emit("S_NotificationCount");
+                /*notificationData*/
+                if(groupActivity){
+                    io.to(socketMember.socketId).emit("S_ActivityDataDashboard", groupActivity);
+                }
+            })
+        }
+        //socketIO for notification
         return res.status(200).json(group);
     }
     catch(error){
       if(error){
-          next(error)
+          next(error);
       }
     }
 };
@@ -255,10 +288,11 @@ const removeGroupMember = async(req,res, next) => {
         return res.status(400).send({"error": "invalid attempt"})
     }
     try{
-        const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}, {members: 1, groupName: 1});
+        const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}/*, {members: 1, groupName: 1}*/);
         if(!group){
             throw new Error('Group doesnot exist, create one');
         }
+        const groupParties = [...group.members]
         const tempMembers = [...group.members];
         const memberToBeRemoved = req.params.memberId;
         if(tempMembers.length != 0){
@@ -307,13 +341,40 @@ const removeGroupMember = async(req,res, next) => {
                 email: req.body.email,
                 name: req.body.name,
             },
-            activity: `removed`
+            activity: `removed`,
+            groupParties
         })
     //}
         // }
-
         // setActivity while removing the user
         // get memebrIdName before removing from a group
+         /* SOCKET_IO_CHANNEL */
+        const socket_ToRemovedUser_Exists = await socketModal.findOne({userId: req.params.memberId.toString()});
+        /* to Added User */
+        if(socket_ToRemovedUser_Exists){
+            // push data to the addedUser
+            io.to(socket_ToRemovedUser_Exists.socketId).emit("S_RemoveFromGroup", group._id)
+            // send GroupActivity ActivityNotification as well
+        }
+        const membersID = group.members.map(member => member._id)
+        membersID.push(req.params.memberId)
+        /* send notification to everyOne in the socket */
+        const socket_GroupMembers_Exist = await socketModal.find({"userId": {$in: membersID}}) 
+        
+        if(socket_GroupMembers_Exist.length > 0){
+            console.log(socket_GroupMembers_Exist)
+            // send Notification and activityData to everyone
+            /* NOTIFICATION */
+            socket_GroupMembers_Exist.forEach(socketMember => {
+                /*notificationCount*/
+                io.to(socketMember.socketId).emit("S_NotificationCount");
+                /*notificationData*/
+                if(activity){
+                    io.to(socketMember.socketId).emit("S_ActivityDataDashboard", activity);
+                }
+            })
+        }       
+
         return res.status(200).json(group);
     }
     catch(error){
@@ -323,6 +384,7 @@ const removeGroupMember = async(req,res, next) => {
     }
 }
 const deleteGroup = async(req,res) => {
+    /* only the use who created the group can delete the group */
     const {groupId} = req.params;
     try{
         const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), createdById: mongoose.Types.ObjectId(req.user._id)});
@@ -348,7 +410,26 @@ const deleteGroup = async(req,res) => {
             groupParties
         })
         await groupActivity.save();
-        console.log("deleted", groupActivity)
+        /* SOCKET_IO_CHANNEL */
+        const membersID = group.members.map(member => member._id)
+        /* send notification to everyOne in the socket */
+        const socket_GroupMembers_Exist = await socketModal.find({"userId": {$in: membersID}}) 
+        if(socket_GroupMembers_Exist.length > 0){
+            // send Notification and activityData to everyone
+            /* NOTIFICATION */
+            socket_GroupMembers_Exist.forEach(socketMember => {
+                /*notificationCount*/
+                io.to(socketMember.socketId).emit("S_NotificationCount");
+                /*notificationData*/
+                if(groupActivity){
+                    // adding activity to the dashboard [COMMON]
+                    io.to(socketMember.socketId).emit("S_ActivityDataDashboard", groupActivity);
+            
+                    // deleting the groupFrom the connected Users
+                    io.to(socketMember.socketId).emit("S_ActivityDataDashboard", group._id);
+                }
+            })
+        }
     }catch(error){
         if(error.message){
             res.send({error: error.message})
@@ -361,7 +442,6 @@ const deleteGroup = async(req,res) => {
 /*-----------
     GROUP SUMMARY
 */
-
 const getGroupSummary = async(req,res) => {
     
     try{
