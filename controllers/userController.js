@@ -19,13 +19,14 @@ const {Errorhandler} = require("../util/error");
 
 // single User API
 const userSignin = async(req,res, next) => {
-    /* validation errors */
-    const errors = validationResult(req);
-    if(!errors.isEmpty()){
-        //return res.status(400).send({errors: errors.array()})
-        throw new Errorhandler(400, errors.array())
-    }
     try{
+        /* validation errors */
+        const errors = validationResult(req);
+        if(!errors.isEmpty()){
+            //return res.status(400).send({errors: errors.array()})
+            throw new Errorhandler(400, errors.array())
+        }
+        
         const {email, password} = req.body;
         const userExists = await userModel.findOne({email: email});
         if(!userExists){
@@ -65,13 +66,13 @@ const userSignin = async(req,res, next) => {
 }
 
 const userSignup = async(req,res, next) => {
-    // validation errors
-    const errors = validationResult(req);
-    if(!errors.isEmpty()){
-        //return res.status(400).send({errors : errors.array()})
-        throw new Errorhandler(400, errors.array())
-    }
     try{
+        // validation errors
+        const errors = validationResult(req);
+        if(!errors.isEmpty()){
+            //return res.status(400).send({errors : errors.array()})
+            throw new Errorhandler(400, errors.array())
+        }
         const {email,password, name} = req.body;
         const exists = await userModel.findOne({email: email});
         if(exists){
@@ -105,7 +106,6 @@ const userSignup = async(req,res, next) => {
         await userActivity.save();
         return res.status(201).json({userObj, token});
     }catch(error){
-        console.log("error", error)
        if(error){
            next(error);
        }
@@ -564,7 +564,6 @@ const getActivitySummary = async(req,res) => {
                         {$project: {groupParties: 0}},
                         {$limit: 500*step},
                         {$sort: sort}])
-        console.log("groupActivities", groupActivities)
          groupActivity.push(...groupActivities)
         /* Added later since user in no longer present in group */
         // const deletedGroupActivities = await groupActivityModel.aggregate([

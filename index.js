@@ -51,7 +51,6 @@ app.use('/api', friendRoutes)
 
 // ErrorHandling middleware
 app.use((err, req,res,next) => {
-    console.log("err", err)
     handleError(err, res);
 })
 

@@ -21,27 +21,40 @@ const getFriends = async (req,res) => {
     }
 }
 // validation necessary
-const postFriend = async(req,res, next) => {  
-    if(req.body.email){
-            // catching validationErrors
-        const errors = validationResult(req).array();
-        //-> validation errors!
-        if(errors.length > 0){
-           // return res.status(422).json(errors)
-            throw new Errorhandler(400, errors.array())
-        }
-    }
-    const {email, name} = req.body;
-    const allowedproperties = ["name", "email"];
-    const containsProperties = Object.keys(req.body).every(item => allowedproperties.includes(item));
-    if(!containsProperties){
-        //return res.status(400).json({"error": "invalid properties detected"})
-        throw new Errorhandler(400, 'invalid properties detected');
-    }
-    // check already in the friend list or not
+const postFriend = async(req,res,next) => {  
+
     try{
+      
+        const {email, name} = req.body;
+        const allowedproperties = ["name", "email"];
+        const containsProperties = Object.keys(req.body).every(item => allowedproperties.includes(item));
+        if(!containsProperties){
+            //return res.status(400).json({"error": "invalid properties detected"})
+            throw new Errorhandler(400, 'invalid properties detected');
+        }
+
+        if(email.trim().length > 0){
+            const errors = validationResult(req);
+            //-> validation errors!
+            if(!errors.isEmpty()){
+                // return res.status(422).json(errors)
+                throw new Errorhandler(400, errors.array())
+            }
+        }
+
+
+        if(name.trim().length >= 0){
+            const errorsA = validationResult(req);
+            if(!errorsA.isEmpty()){
+                if(errorsA.array().some(error => error.param === 'name')){
+                    // return res.status(422).json(errors)
+                    throw new Errorhandler(400, errorsA.array())
+                }
+            }
+        }
         // exclude name checking
-        if(email){
+        // email exists -- passed after validation
+        if(req.body.email && req.body.email.trim().length > 0){
             const userExist = await friendsModal.find({
                 _id: mongoose.Types.ObjectId(req.user._id), $or : [
                     {"friends": {$elemMatch: {email: email, name: name}}},
@@ -56,7 +69,9 @@ const postFriend = async(req,res, next) => {
         }
         // if email is provided check for existing user in userModal
         let userExists = null;
-        if(email){
+
+        // email exists -- passed after validation
+        if(req.body.email && req.body.email.trim().length > 0){
             userExists = await userModal.findOne({email: email})
         }
         if(userExists){
@@ -120,20 +135,39 @@ const postFriend = async(req,res, next) => {
     }
 }
 const updateFriend = async(req,res, next) => {
-    // catching validationErrors
-    const errors = validationResult(req).array();
-    //-> validation errors!
-    if(errors.length > 0){
-        return res.status(422).json(errors)
-    }
-    const {email, name, friendId} = req.body;
-    const allowedproperties = ["name", "email", "friendId"];
-    const containsProperties = Object.keys(req.body).every(item => allowedproperties.includes(item));
-    if(!containsProperties){
-        //return res.status(400).json({"error": "invalid properties detected"})
-        throw new Errorhandler(400, "invalid properties detected");
-    }
     try{
+
+        const {email, name, friendId} = req.body;
+        const allowedproperties = ["name", "email", "friendId"];
+        const containsProperties = Object.keys(req.body).every(item => allowedproperties.includes(item));
+        if(!containsProperties){
+            //return res.status(400).json({"error": "invalid properties detected"})
+            throw new Errorhandler(400, "invalid properties detected");
+        }
+
+        const errors = validationResult(req);
+        //-> validation errors!
+        if(!errors.isEmpty()){
+            // return res.status(422).json(errors)
+            throw new Errorhandler(400, errors.array())
+        }
+        //* EXISTENCE OF THE USER WITHIN THE FRIEND LIST *//
+        if(req.body.email && req.body.email.trim().length > 0){
+            const userExist = await friendsModal.find({
+                _id: mongoose.Types.ObjectId(req.user._id), $or : [
+                    {"friends": {$elemMatch: {email: email, name: name}}},
+                    {"friends": {$elemMatch: {email: email}}},
+                    /*{"friends": {$elemMatch: {email: {$type: 10}, name : {$type: 10}}}}*/
+                ]
+            })
+            if(userExist.length !== 0){
+                console.log("alreadyExistssameEmail")
+                //return res.status(400).json({"error": "cannot add the exisiting friend"})
+                throw new Errorhandler(400, "cannot add the exisiting friend");
+            }
+        }
+
+        // * EXISTENCE OF THE USER IN THE USERMODAL *//
         // find the existence of the user
         let userExists = null;
         if(email){
@@ -205,7 +239,7 @@ const deleteFriend = async(req,res, next) => {
     const {id} = req.params;
     if(!id){
         //return res.status(400).json({"error": "invalid delete attempt"})
-        throw new Errorhandler(400, 'delete')
+        throw new Errorhandler(400, 'invalid delete attempt')
     }
     try{
         const friend = await friendsModal.findOne({_id: mongoose.Types.ObjectId(req.user._id), 
