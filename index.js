@@ -61,13 +61,35 @@ mongoose.connect('mongodb://localhost:27017/splitzone', {useNewUrlParser: true, 
             console.log('listening on *:3000');
           });
           io.on('connection', (socket) => {
+
+                    // only check and update the collection once logged in -
+                    // console.log("socketID", socket.id)
+                    // console.log("query", socket.handshake.query['userID'])
+                    // const userID = socket.handshake.query['userID'];
+                    // const reSocketID = socket.id;
+                    // console.log("reSokcetID", reSocketID)
+                    // if(userID && reSocketID){
+                    //     ReEstablishment()
+                    // }
+
+                    // async function ReEstablishment(){
+                    //     try{
+                    //         const userExistsOnTheSocket = await socketModal.findOne({userId: userID})
+                    //         if(userExistsOnTheSocket){
+                    //             userExistsOnTheSocket.socketId = reSocketID;
+                    //             await userExistsOnTheSocket.save();
+                    //         }
+                    //     }catch(e){
+                    //         console.log("errorOccured",error)
+                    //     }
+                    // }
+
+                    /*Events on Connection*/
                     /* loggedIm */
                     socket.on("loggedIn", (userData) => {
                         console.log("userData", userData)
                         async function saveLoginUser (){
-                            console.log("function")
                             try{
-                                console.log("id", socket.id)
                                 const connected = await socketModal.findOne({userEmail: userData.userEmail})
                                 if(connected){
                                     connected.socketId = socket.id;

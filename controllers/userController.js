@@ -560,8 +560,8 @@ const getActivitySummary = async(req,res) => {
 
         /* CHANGED LOGIC TO INCLUDE ACTIVITES INTO REMOVED USERS */
         const groupActivities = await groupActivityModel.aggregate([
-                        {$match: {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}},
-                        {$project: {groupParties: 0}},
+                        {$match: {$or: [{"invokedBy._id": mongoose.Types.ObjectId(req.user._id)}, {"groupParties._id": mongoose.Types.ObjectId(req.user._id)}]}},
+                        // {$project: {groupParties: 1}},
                         {$limit: 500*step},
                         {$sort: sort}])
          groupActivity.push(...groupActivities)

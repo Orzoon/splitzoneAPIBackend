@@ -5,6 +5,7 @@ const groupActivityModel = require("../modals/groupActivityModel")
 const billModel = require("../modals/billModel");
 const socketModal = require('../modals/socketModel');
 const {Errorhandler} = require("../util/error")
+const {validationResult} = require("express-validator")
 
 
 const io = require("../util/socket").getIO();
@@ -124,14 +125,20 @@ const getGroup = async(req,res,next) => {
 }
 
 const postGroup = async(req,res, next) => {
-    const allowedProperties = ["groupName"];
-    const properties = Object.keys(req.body)
-    const includes = properties.every(item => allowedProperties.includes(item))
-    if(!includes){
-        //return res.send({"error": "invalid properties"})
-        throw new Errorhandler(400, 'invalid properties')
-    }
     try{
+        const errors = validationResult(req);
+        if(!errors.isEmpty()){
+            throw new Errorhandler(400, errors.array())
+        }
+        // catch validation errors
+        const allowedProperties = ["groupName"];
+        const properties = Object.keys(req.body);
+        const includes = properties.every(item => allowedProperties.includes(item))
+        if(!includes){
+            //return res.send({"error": "invalid properties"})
+            throw new Errorhandler(400, 'invalid properties')
+        }
+
         const group = new groupModel({groupName: req.body.groupName, createdBy: req.user.username, createdById: req.user._id, members: [{_id: mongoose.Types.ObjectId(req.user._id), name: req.user.username, email: req.user.email}]});
         await group.save();
 
@@ -140,16 +147,15 @@ const postGroup = async(req,res, next) => {
             _id: req.user._id,
             name: req.user.username
         }
-
         /*GROUP ACTIVITY*/
         const groupActivity = new groupActivityModel({
             activityGroupId: group._id, 
             groupName: group.groupName,
+            groupParties: [],
             invokedBy: invokedBy,
             activity: `created`});
         await groupActivity.save();
         return res.status(200).json(group);
-       
     }
     catch(error){
         if(error){
@@ -216,6 +222,7 @@ const updateGroup = async(req,res, next) => {
         if(req.body.hasOwnProperty("groupName")){
             const groupActivity = new groupActivityModel({
                 activityGroupId: groupObj._id,
+                groupParties,
                 groupName: groupObj.groupName,
                 invokedBy: {
                     _id: req.user._id,
@@ -279,7 +286,6 @@ const updateGroup = async(req,res, next) => {
       }
     }
 };
-
 const removeGroupMember = async(req,res, next) => {
     // validate body of the user to be removed--> NOTE
     // console.log("reqBody", req.body);
@@ -362,7 +368,6 @@ const removeGroupMember = async(req,res, next) => {
         const socket_GroupMembers_Exist = await socketModal.find({"userId": {$in: membersID}}) 
         
         if(socket_GroupMembers_Exist.length > 0){
-            console.log(socket_GroupMembers_Exist)
             // send Notification and activityData to everyone
             /* NOTIFICATION */
             socket_GroupMembers_Exist.forEach(socketMember => {
@@ -374,7 +379,6 @@ const removeGroupMember = async(req,res, next) => {
                 }
             })
         }       
-
         return res.status(200).json(group);
     }
     catch(error){
@@ -443,42 +447,61 @@ const deleteGroup = async(req,res) => {
     GROUP SUMMARY
 */
 const getGroupSummary = async(req,res) => {
-    
+    console.log("request")
     try{
-        //check for allowed properties
-        // check for existence of a group
-        // check for bills length if exists
         // check if the the lastest bill is of existing month
-        const {groupId} = req.params.trim();
-        const allowedProperties = []
-        // const properties = Object.keys(req.body);
-        // const includes = properties.every(property => allowedProperties.includes(property));
+        // const allowedProperties = ["groupId"];
+        // const properties = Object.keys(req.params)
+        // const includes = properties.every(property => allowedProperties.includes(properties))
         // if(!includes){
-        //    return  res.status(400).json({"error": "invalid list of properties"})
+        //     throw new Errorhandler(400, 'invalid properties');
         // }
-
-
-        /*------
-            EXISTENCE OF A GROUP
-        --------*/
-        if(groupId.length <= 0){
-            return res.status(400).send({'error': 'invalid attempt'})
-        }
+        /*-- EXISTENCE OF A GROUP --*/
+        const {groupId} = req.params
         const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)});
         if(!group){
-            return res.status(400).send({"error": "group cannot be found"})
+            throw new Errorhandler(400, 'group cannot be found');
         }
-
         /* GETTING BILLS */
-        const bills = await billModel.find({ownerGroup: mongoose.Types.ObjectId(groupId), $or: [{paidBy : mongoose.Types.ObjectId(req.user._id)}, {"splittedAmongMembers": mongoose.Types.ObjectId(req.user._id)}]})
+        const bills = await billModel.aggregate([
+                        {$match: {ownerGroup: mongoose.Types.ObjectId(groupId), 
+                                $or: [{paidBy : mongoose.Types.ObjectId(req.user._id)}, {"splittedAmongMembers": mongoose.Types.ObjectId(req.user._id)}]}
+                        },
+                        {$sort: {paidDate: -1}}
+        ])
         if(!bills){
-            return res.status(200).json({"msg": "no data"})
+            throw new Errorhandler(400, 'add bills for the summary report');
         }
+        const refinedSummary = []
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+        // looping through the bills and allocation them based on the month and the year
+        let firstRound = false;
+        bills.forEach(bill => {
+            // get month
+            const billMonth = months[new Date(bill.paidDate).getMonth()];
+            // check an array for existing month
+            if(refinedSummary.length === 0){
+                refinedSummary.push({month: billMonth, bills: [bill]})
+            }
+            if(firstRound && refinedSummary.length >= 1){
+                refinedSummary.forEach((refinedSummaryItem, index) => {
+                    console.log("index", index)
+                    if(refinedSummaryItem.month !== billMonth){
+                        refinedSummary.push({month: billMonth, bills: [bill]});
+                    }
+                    else if(refinedSummaryItem.month === billMonth){
+                        refinedSummary[index].bills.push(bill)
+                    }
+                })
+            }
+            firstRound = true
+        })
 
-        return res.status(200).json(bills)
+        return res.status(200).json(refinedSummary)
 
         // return group detauls as well
     }catch(error){
+        console.log("error",error)
         if(error.message){
             res.send({error: error.message})
         }
@@ -487,8 +510,6 @@ const getGroupSummary = async(req,res) => {
         }
     }   
 }
-
-
 
 module.exports = {
     getGroups,
