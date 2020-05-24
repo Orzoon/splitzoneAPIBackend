@@ -44,7 +44,7 @@ const getGroup = async(req,res,next) => {
         const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), "members._id": mongoose.Types.ObjectId(req.user._id)});
         if(!group){
             //return res.status(400).send({"error": "group cannot be found"})
-            throw new Errorhandler(400, 'group cannot be found')
+            throw new Errorhandler(400, 'NOGROUP')
         }
         const bgDetails = {}
         // send bills Details Info
@@ -118,6 +118,7 @@ const getGroup = async(req,res,next) => {
         groupObj.bgDetails = bgDetails;
         return res.status(200).json(groupObj);
     }catch(error){
+        console.log("errorCatch", error)
         if(error){
             next(error)
         }
@@ -164,25 +165,25 @@ const postGroup = async(req,res, next) => {
     }
 };
 const updateGroup = async(req,res, next) => {
-    
-    if(req.params.groupId.length = 0 || !req.params.groupId){
-        //return res.status(400).send({"error": "invalid group link"})
-        throw new Errorhandler(400, 'invalid group link')
-    }
-    const allowedProperties = ["groupName", "members"];
-    const properties = Object.keys(req.body)
-    if(req.body.members){
-        if(typeof(req.body.members) != "object"){
+    try{
+        if(req.params.groupId.length = 0 || !req.params.groupId){
+            //return res.status(400).send({"error": "invalid group link"})
+            throw new Errorhandler(400, 'invalid group link')
+        }
+        const allowedProperties = ["groupName", "members"];
+        const properties = Object.keys(req.body)
+        if(req.body.members){
+            if(typeof(req.body.members) != "object"){
+                //return res.status(400).send({"error": "invalid update attempt"})
+                throw new Errorhandler(400, 'invalid update attempt')
+            }
+        }
+        const includes = properties.every((item) => allowedProperties.includes(item));
+        if(!includes){
             //return res.status(400).send({"error": "invalid update attempt"})
             throw new Errorhandler(400, 'invalid update attempt')
         }
-    }
-    const includes = properties.every((item) => allowedProperties.includes(item));
-    if(!includes){
-        //return res.status(400).send({"error": "invalid update attempt"})
-        throw new Errorhandler(400, 'invalid update attempt')
-    }
-    try{
+
         const group = await groupModel.findOne({"members._id": mongoose.Types.ObjectId(req.user._id), _id: mongoose.Types.ObjectId(req.params.groupId)}/*, {members: 1, groupName: 1}*/);
         if(!group){
             throw new Error('Group doesnot exist, create one');
@@ -389,8 +390,9 @@ const removeGroupMember = async(req,res, next) => {
 }
 const deleteGroup = async(req,res) => {
     /* only the use who created the group can delete the group */
-    const {groupId} = req.params;
+    
     try{
+        const {groupId} = req.params;
         const group = await groupModel.findOne({_id: mongoose.Types.ObjectId(groupId), createdById: mongoose.Types.ObjectId(req.user._id)});
         if(!group){
             throw new Error('invalid operation')
@@ -447,7 +449,6 @@ const deleteGroup = async(req,res) => {
     GROUP SUMMARY
 */
 const getGroupSummary = async(req,res) => {
-    console.log("request")
     try{
         // check if the the lastest bill is of existing month
         // const allowedProperties = ["groupId"];
@@ -501,7 +502,6 @@ const getGroupSummary = async(req,res) => {
 
         // return group detauls as well
     }catch(error){
-        console.log("error",error)
         if(error.message){
             res.send({error: error.message})
         }

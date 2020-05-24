@@ -24,7 +24,7 @@ const handleError = (err, res) => {
         });
     }
     else{
-        res.status(statusCode).json({
+        res.status(500).json({
             status: "error",
             statusCode: 500,
             message: "Something went wrong try again later"
