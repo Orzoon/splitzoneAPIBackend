@@ -3,7 +3,7 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const PORT = 5000 || process.env.PORT;
+const PORT = process.env.PORT;
 const path = require('path')
 const io = require('./util/socket').init(http);
 const bodyParser = require('body-parser');
