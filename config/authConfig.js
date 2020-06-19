@@ -34,7 +34,7 @@ passport.deserializeUser((user,cb) => {
 passport.use(new googleStrategy({
     clientID: keys.google.clientID,
     clientSecret: keys.google.clientSecret,
-    callbackURL: 'https://splitzone.herokuapp.com/auth/google/callback'
+    callbackURL: 'http://splitzoneapp-env.eba-hmbpykvv.us-east-1.elasticbeanstalk.com/auth/google/callback'
     },
     async function (accessToken, refreshToken, profile, cb){
         // get email
