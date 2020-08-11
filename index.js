@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 const path = require('path')
 const io = require('./util/socket').init(http);
 const bodyParser = require('body-parser');

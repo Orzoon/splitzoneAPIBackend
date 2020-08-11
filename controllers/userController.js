@@ -280,6 +280,14 @@ const getUserSummary = async(req,res) => {
         let currentRefined = [];
         let previousRefined = [];
 
+        // --------piechartSection
+        let lentAmountArray = [];
+        let oweAmountArray = [];
+
+
+        /* 
+            NOTE -- Deriving total spent(excluding lent amount[pure expenditure])
+        */
         // Pushing data into currentRefinedArray
         currentBills.forEach(bill => {     
             // paidBy user and including user
@@ -287,15 +295,20 @@ const getUserSummary = async(req,res) => {
             if((bill.paidBy._id.toString() === req.user._id.toString()  && bill.splittedAmongMembers.some(id => id.toString()  === req.user._id.toString())) || (bill.paidBy._id.toString() === req.user._id.toString() && bill.splittedAmongMembers.some(id => id.toString() !== req.user._id.toString() ))){  
                 // divided equally
                     if(bill.dividedEqually){
+                        /* for pure Expenditure */
                         const amountValue = bill.paidAmount/bill.splittedAmongMembers.length;
                         const object = {
                             paidDate: bill.paidDate,
                             amount: amountValue
                         }
                         currentRefined.push(object)
+
+                        /* for pure Expenditure */
+                        lentAmountArray.push(bill.paidAmount-amountValue)
                     }
                     // divided unequally
                     if(!bill.dividedEqually){
+                        /* for pure Expenditure */
                         // finding index of user
                         const userIndex = bill.divided.findIndex(item => item._id.toString()  === req.user._id.toString())
                         const amountValue = bill.divided[userIndex].amount;
@@ -304,10 +317,30 @@ const getUserSummary = async(req,res) => {
                             amount: amountValue
                         }
                         currentRefined.push(object)
+                        /* for pure Expenditure */
+                        // already divided unequally ---- so checking for involving user or not in a bill
+                        if(bill.splittedAmongMembers.some(id => id.toString()  === req.user._id.toString())){
+                            // amountvalue is users amount
+                            const amount = bill.divided.reduce((currentValue, item, index) => {
+                                currentValue += item.amount
+                                return currentValue
+                            },0) - amountValue;
+                            // pushing value in the array
+                            lentAmountArray.push(amount)
+                        }
+                        else {
+                            // amountvalue is users amount
+                            const amount = bill.divided.reduce((currentValue, item, index) => {
+                                currentValue += item.amount
+                                return currentValue
+                            },0)
+                            // pushing value in the array
+                            lentAmountArray.push(amount)
+                        }
                     }
             }
     
-            // paid by others including user
+            // paid by others including user 
             /* Owe */
             if(bill.paidBy._id.toString() !== req.user._id.toString() && bill.splittedAmongMembers.some(id => id.toString() === req.user._id.toString())){
                     // divided equally
@@ -318,7 +351,11 @@ const getUserSummary = async(req,res) => {
                             amount: amountValue
                         }
                         currentRefined.push(object)
+
+                        /* owe amount */
+                        oweAmountArray.push(amount)
                     }
+
                     if(!bill.dividedEqually){
                          // finding index of user
                          const userIndex = bill.divided.findIndex(item => item._id.toString()  === req.user._id.toString() )
@@ -328,8 +365,13 @@ const getUserSummary = async(req,res) => {
                              amount: amountValue
                          }
                          currentRefined.push(object)
+
+                        /* owe amount */
+                        oweAmountArray.push(amount)
                     }
             }
+
+            // getting lent total from the bills (for user and user lent data only)
         })
 
         previousBills.forEach(bill => {     
@@ -418,10 +460,35 @@ const getUserSummary = async(req,res) => {
                                     }
                                     return a;
                                  }, {}))
+        // ------> END OF LINECHART
 
+        // start of pie chart left
+        /*
+        ---NOTE-- get individual expenditure excluding lent
+        */
+
+        // making use of currentFinalRefined
+        // spend
+        const indExpSpent = currentFinalRefined.reduce((current, item, index) => {
+            current += item.amount
+            return current
+        }, 0)
+
+        const totalLent = lentAmountArray.reduce((a,b) => a+b,0)
+        const totalOwe = oweAmountArray.reduce((a,b) => a+b,0)
+        
+        // to be added 
+        // lentResolved
+        // owe Resolved
+        
         return res.status(200).json({
             currentFinalRefined,
-            previousFinalRefined
+            previousFinalRefined,
+            pieData: {
+                indExpSpent,
+                totalLent,
+                totalOwe
+            }
         })
 
     }catch(error){

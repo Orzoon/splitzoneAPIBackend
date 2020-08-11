@@ -84,7 +84,7 @@ const postBill = async(req,res) => {
                 name: req.user.username
             },
             groupId: req.params.groupId,
-            activity: "added the bill to the group"
+            activity: "added"
         })
         
         res.status(200).json(bill)
